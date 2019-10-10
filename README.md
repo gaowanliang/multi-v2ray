@@ -34,7 +34,7 @@ a tool to manage v2ray config json, support multiple user && group manage
 ## How To Use
 new install
 ```
-source <(curl -sL https://git.io/fNgqx)
+source <(curl -sL https://git.io/Jelex)
 ```
 
 中文版安装
