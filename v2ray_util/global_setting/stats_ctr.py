@@ -3,9 +3,11 @@
 import os
 import re
 
+from ..util_core.v2ray import V2ray
 from ..util_core.loader import Loader
 from ..util_core.writer import GlobalWriter
 from ..util_core.utils import bytes_2_human_readable, ColorStr
+
 
 class StatsFactory:
     def __init__(self, door_port):
@@ -19,7 +21,8 @@ class StatsFactory:
         stats_cmd = "cd /usr/bin/v2ray && ./v2ctl api --server=127.0.0.1:%s StatsService.GetStats 'name: \"%s>>>%s>>>traffic>>>%s\" reset: %s'"
         type_tag = ("inbound" if is_group else "user")
 
-        stats_real_cmd = stats_cmd % (str(self.door_port), type_tag, meta_info, "downlink", is_reset)
+        stats_real_cmd = stats_cmd % (
+            str(self.door_port), type_tag, meta_info, "downlink", is_reset)
         downlink_result = os.popen(stats_real_cmd).readlines()
         if downlink_result and len(downlink_result) == 5:
             re_result = re.findall(r"\d+", downlink_result[2])
@@ -28,26 +31,35 @@ class StatsFactory:
                 return
             self.downlink_value = int(re_result[0])
 
-        stats_real_cmd = stats_cmd % (str(self.door_port), type_tag, meta_info, "uplink", is_reset)
+        stats_real_cmd = stats_cmd % (
+            str(self.door_port), type_tag, meta_info, "uplink", is_reset)
         uplink_result = os.popen(stats_real_cmd).readlines()
         if uplink_result and len(uplink_result) == 5:
             re_result = re.findall(r"\d+", uplink_result[2])
             self.uplink_value = int(re_result[0])
 
     def print_stats(self):
-        print('''
-downlink: {0}  
-uplink: {1} 
-total: {2}
-        '''.format(ColorStr.cyan(bytes_2_human_readable(self.downlink_value, 2)),
-        ColorStr.cyan(bytes_2_human_readable(self.uplink_value, 2)),
-        ColorStr.cyan(bytes_2_human_readable(self.downlink_value + self.uplink_value, 2)))
-        )
+        print('downlink:{0}=uplink:{1}=total:{2}#'.format(self.downlink_value,
+                                                          self.uplink_value,
+                                                          self.downlink_value + self.uplink_value
+                                                          ),end='')
+
+
+def fast_check_all_stats():
+    loader = Loader()
+    profile = loader.profile
+    group_list = profile.group_list
+    for group in group_list:
+        for _, node in enumerate(group.node_list):
+            if node.user_info != '':
+                # alter_id', 'header', 'host', 'link', 'network', 'password', 'path', 'quic', 'stream', 'user_info', 'user_number'
+                print(node.user_number, end='=')
+                sf = StatsFactory(profile.stats.door_port)
+                sf.get_stats(node.user_info, False)
+                sf.print_stats()
 
 
 def manage():
-
-    RESTART_CMD = "service v2ray restart"
 
     FIND_V2RAY_CRONTAB_CMD = "crontab -l|grep v2ray"
 
@@ -60,7 +72,8 @@ def manage():
 
         group_list = profile.group_list
 
-        print("{}: {}".format(_("V2ray Traffic Statistics Status"), profile.stats.status))
+        print("{}: {}".format(
+            _("V2ray Traffic Statistics Status"), profile.stats.status))
 
         print("")
         print(_("1.open statistics"))
@@ -77,42 +90,46 @@ def manage():
         choice = input(_("please select: "))
         if choice == "1":
             if os.popen(FIND_V2RAY_CRONTAB_CMD).readlines():
-                rchoice = input(_("open traffic statistics will close schedule update v2ray, continue?(y/n): "))
+                rchoice = input(
+                    _("open traffic statistics will close schedule update v2ray, continue?(y/n): "))
                 if rchoice == "y" or rchoice == "Y":
-                    #关闭定时更新v2ray服务
+                    # 关闭定时更新v2ray服务
                     os.system(DEL_UPDATE_TIMER_CMD)
                 else:
                     print(_("undo open traffic statistics!!"))
                     continue
             gw = GlobalWriter(group_list)
             gw.write_stats(True)
-            os.system(RESTART_CMD)
+            V2ray.restart()
             print(_("open traffic statistics success!"))
             print("")
-            
+
         elif choice == "2":
             gw = GlobalWriter(group_list)
             gw.write_stats(False)
-            os.system(RESTART_CMD)
+            V2ray.restart()
             print(_("close traffic statistics success!"))
             print("")
+
         elif choice == "3" or choice == "4":
             is_reset = (False if choice == "3" else True)
             action_info = ("check" if choice == "3" else "reset")
             if not profile.stats.status:
-                print("{} {}".format(_("only open traffic statistics can"), action_info))
+                print("{} {}".format(
+                    _("only open traffic statistics can"), action_info))
                 print("")
                 continue
-            
+
             if group_list[-1].node_list[-1].user_number > 1:
                 print(profile)
-                schoice = input("{} {}: ".format(_("please input number or group alphabet to"), action_info))
+                schoice = input("{} {}: ".format(
+                    _("please input number or group alphabet to"), action_info))
             else:
                 schoice = "A"
 
             sf = StatsFactory(profile.stats.door_port)
-            schoice=schoice.upper()
-            if schoice.isnumeric() :
+            schoice = schoice.upper()
+            if schoice.isnumeric():
                 schoice = int(schoice)
                 if schoice > 0 and schoice <= group_list[-1].node_list[-1].user_number:
                     find = False
@@ -122,8 +139,8 @@ def manage():
                         for index, node in enumerate(group.node_list):
                             if node.user_number == schoice:
                                 if node.user_info:
-                                   sf.get_stats(node.user_info, is_reset)
-                                   sf.print_stats()
+                                    sf.get_stats(node.user_info, is_reset)
+                                    sf.print_stats()
                                 else:
                                     print(_("no effective email!!!"))
                                     print("")
